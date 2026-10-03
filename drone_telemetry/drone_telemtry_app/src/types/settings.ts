@@ -8,6 +8,12 @@ export interface SystemSettings {
   graphRate: number;
   storage: string;
   esp32Connected: boolean;
+  stm32Connected?: boolean;
+  esp32Port?: string;
+  stm32Port?: string;
+  baud?: string;
+  audioMuted: boolean;
+  theme: 'dark' | 'light';
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -20,6 +26,12 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   graphRate: 200,
   storage: 'C:\\AeroGuard\\Logs',
   esp32Connected: true,
+  stm32Connected: true,
+  esp32Port: 'COM3',
+  stm32Port: 'COM7',
+  baud: '115200',
+  audioMuted: false,
+  theme: 'dark',
 };
 
 const SETTINGS_KEY = 'aeroguard_system_settings';

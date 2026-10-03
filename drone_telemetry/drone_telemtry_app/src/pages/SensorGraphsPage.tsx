@@ -7,27 +7,29 @@ interface SensorGraphsProps {
   running: boolean;
   onToggle: () => void;
   onClear: () => void;
+  theme?: 'dark' | 'light';
 }
 
 type Channel = { key: keyof ESP32Telemetry; label: string; color: string; group: string };
 
 const CHANNELS: Channel[] = [
-  { key: 'ax', label: 'Accel X', color: '#22d3ee', group: 'Accelerometer' },
+  { key: 'ax', label: 'Accel X', color: '#0284c7', group: 'Accelerometer' },
   { key: 'ay', label: 'Accel Y', color: '#0ea5e9', group: 'Accelerometer' },
   { key: 'az', label: 'Accel Z', color: '#38bdf8', group: 'Accelerometer' },
-  { key: 'gx', label: 'Gyro X', color: '#a78bfa', group: 'Gyroscope' },
+  { key: 'gx', label: 'Gyro X', color: '#7c3aed', group: 'Gyroscope' },
   { key: 'gy', label: 'Gyro Y', color: '#818cf8', group: 'Gyroscope' },
   { key: 'gz', label: 'Gyro Z', color: '#6366f1', group: 'Gyroscope' },
-  { key: 'roll', label: 'Roll', color: '#22c55e', group: 'Orientation' },
-  { key: 'pitch', label: 'Pitch', color: '#eab308', group: 'Orientation' },
+  { key: 'roll', label: 'Roll', color: '#059669', group: 'Orientation' },
+  { key: 'pitch', label: 'Pitch', color: '#d97706', group: 'Orientation' },
   { key: 'yaw', label: 'Yaw', color: '#f97316', group: 'Orientation' },
-  { key: 'altitude', label: 'Altitude', color: '#38bdf8', group: 'Environment' },
-  { key: 'battery', label: 'Battery V', color: '#ef4444', group: 'System' },
+  { key: 'altitude', label: 'Altitude', color: '#0284c7', group: 'Environment' },
+  { key: 'battery', label: 'Battery V', color: '#dc2626', group: 'System' },
 ];
 
 const TIME_RANGES = [10, 30, 60, 120, 300];
 
-export default function SensorGraphsPage({ history, running, onToggle, onClear }: SensorGraphsProps) {
+export default function SensorGraphsPage({ history, running, onToggle, onClear, theme = 'dark' }: SensorGraphsProps) {
+  const isLight = theme === 'light';
   const [selected, setSelected] = useState<Set<keyof ESP32Telemetry>>(
     new Set(['ax', 'ay', 'az'])
   );
@@ -55,52 +57,58 @@ export default function SensorGraphsPage({ history, running, onToggle, onClear }
   const groups = Array.from(new Set(CHANNELS.map(c => c.group)));
 
   return (
-    <div className="h-full flex flex-col p-4 gap-3 select-none">
+    <div className={`h-full flex flex-col p-4 gap-3 select-none ${
+      isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#060910] text-slate-100'
+    }`}>
       {/* Controls */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <button
           onClick={onToggle}
           className={`px-4 py-1.5 rounded font-mono text-xs font-semibold border transition-colors ${
             running
-              ? 'border-[#eab308] text-[#eab308] bg-[#eab308]/10 hover:bg-[#eab308]/20'
-              : 'border-[#22c55e] text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20'
+              ? isLight ? 'border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100' : 'border-amber-500 text-amber-400 bg-amber-950/20 hover:bg-amber-950/40'
+              : isLight ? 'border-emerald-400 text-emerald-800 bg-emerald-50 hover:bg-emerald-100' : 'border-emerald-500 text-emerald-400 bg-emerald-950/20 hover:bg-emerald-950/40'
           }`}
         >
           {running ? '⏸ PAUSE' : '▶ START'}
         </button>
         <button
           onClick={onClear}
-          className="px-4 py-1.5 rounded font-mono text-xs font-semibold border border-[#1e2a3e] text-[#637087] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
+          className={`px-4 py-1.5 rounded font-mono text-xs font-semibold border transition-colors ${
+            isLight ? 'border-slate-300 text-slate-700 hover:border-rose-400 hover:text-rose-700 bg-white' : 'border-slate-800 text-slate-400 hover:border-rose-500 hover:text-rose-400 bg-[#0f172a]'
+          }`}
         >
           ✕ CLEAR
         </button>
         <div className="flex items-center gap-1 ml-2">
-          <span className="font-mono text-[10px] text-[#637087] mr-1">BUFFER:</span>
+          <span className={`font-mono text-[10px] mr-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>BUFFER:</span>
           {TIME_RANGES.map(t => (
             <button
               key={t}
               onClick={() => setTimeRange(t)}
               className={`px-2 py-1 font-mono text-[10px] rounded border transition-colors ${
                 timeRange === t
-                  ? 'border-[#0ea5e9] text-[#0ea5e9] bg-[#0ea5e9]/10 font-bold'
-                  : 'border-[#1e2a3e] text-[#637087] hover:border-[#637087]'
+                  ? isLight ? 'border-sky-500 text-sky-800 bg-sky-50 font-bold' : 'border-sky-500 text-sky-400 bg-sky-950/40 font-bold'
+                  : isLight ? 'border-slate-300 text-slate-600 hover:border-slate-400 bg-white' : 'border-slate-800 text-slate-400 hover:border-slate-700 bg-[#0f172a]'
               }`}
             >
               {t}s
             </button>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-1 font-mono text-[10px]">
-          <div className={`w-2 h-2 rounded-full ${running ? 'bg-[#22c55e]' : 'bg-[#637087]'}`} />
-          <span className="text-[#637087]">{history.length.toLocaleString()} SAMPLES IN BUFFER</span>
+        <div className="ml-auto flex items-center gap-1.5 font-mono text-[10px]">
+          <div className={`w-2 h-2 rounded-full ${running ? (isLight ? 'bg-emerald-600' : 'bg-emerald-400') : (isLight ? 'bg-slate-400' : 'bg-slate-500')}`} />
+          <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>{history.length.toLocaleString()} SAMPLES IN BUFFER</span>
         </div>
       </div>
 
       {/* Channel Selector */}
-      <div className="flex-shrink-0 flex flex-wrap gap-3 bg-[#0d1320] border border-[#1e2a3e] p-2.5 rounded">
+      <div className={`flex-shrink-0 flex flex-wrap gap-3 border p-2.5 rounded ${
+        isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f172a] border-slate-800'
+      }`}>
         {groups.map(group => (
           <div key={group} className="flex items-center gap-1">
-            <span className="font-mono text-[9px] text-[#637087] uppercase mr-1 font-bold">{group}:</span>
+            <span className={`font-mono text-[9px] uppercase mr-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{group}:</span>
             {CHANNELS.filter(c => c.group === group).map(c => (
               <button
                 key={c.key as string}
@@ -108,7 +116,7 @@ export default function SensorGraphsPage({ history, running, onToggle, onClear }
                 className={`px-2 py-0.5 rounded font-mono text-[10px] border transition-all ${
                   selected.has(c.key)
                     ? 'border-current text-current bg-current/10 font-bold'
-                    : 'border-[#1e2a3e] text-[#637087]'
+                    : isLight ? 'border-slate-200 text-slate-500 hover:bg-slate-50' : 'border-slate-800 text-slate-400'
                 }`}
                 style={selected.has(c.key) ? { color: c.color, borderColor: c.color + '80' } : {}}
               >
@@ -120,17 +128,19 @@ export default function SensorGraphsPage({ history, running, onToggle, onClear }
       </div>
 
       {/* Recharts Live Chart */}
-      <div className="flex-1 bg-[#0d1320] border border-[#1e2a3e] rounded p-3 min-h-0">
+      <div className={`flex-1 border rounded p-3 min-h-0 ${
+        isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f172a] border-slate-800'
+      }`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#1e2a3e" />
-            <XAxis dataKey="i" tick={{ fontSize: 9, fill: '#637087', fontFamily: 'JetBrains Mono' }} />
-            <YAxis tick={{ fontSize: 9, fill: '#637087', fontFamily: 'JetBrains Mono' }} width={45} />
+            <CartesianGrid strokeDasharray="2 4" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+            <XAxis dataKey="i" tick={{ fontSize: 9, fill: isLight ? '#64748b' : '#94a3b8', fontFamily: 'JetBrains Mono' }} />
+            <YAxis tick={{ fontSize: 9, fill: isLight ? '#64748b' : '#94a3b8', fontFamily: 'JetBrains Mono' }} width={45} />
             <Tooltip
-              contentStyle={{ background: '#0d1320', border: '1px solid #1e2a3e', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-              labelStyle={{ color: '#637087' }}
+              contentStyle={{ background: isLight ? '#ffffff' : '#0f172a', border: `1px solid ${isLight ? '#cbd5e1' : '#1e293b'}`, fontSize: 10, fontFamily: 'JetBrains Mono', color: isLight ? '#0f172a' : '#f8fafc' }}
+              labelStyle={{ color: isLight ? '#64748b' : '#94a3b8' }}
             />
-            <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'JetBrains Mono' }} />
+            <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'JetBrains Mono', color: isLight ? '#0f172a' : '#f8fafc' }} />
             {CHANNELS.filter(c => selected.has(c.key)).map(c => (
               <Line
                 key={c.key as string}

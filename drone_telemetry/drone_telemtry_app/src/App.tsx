@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Page } from './types/navigation';
 import type { 
   ESP32Telemetry, 
   ProcessedTelemetry, 
@@ -22,23 +23,28 @@ import {
   setTestScenario, 
   type TestScenarioName 
 } from './services/websocketClient';
+import { 
+  startCrashAlarm, 
+  stopCrashAlarm, 
+  setAudioMuted 
+} from './services/audioAlertService';
+
+import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
 
 import DashboardPage from './pages/DashboardPage';
+import LiveMonitoringPage from './pages/LiveMonitoringPage';
 import SensorGraphsPage from './pages/SensorGraphsPage';
+import NetworkBridgePage from './pages/NetworkBridgePage';
+import AlertsPage from './pages/AlertsPage';
+import SystemHealthPage from './pages/SystemHealthPage';
 import DataLoggerPage from './pages/DataLoggerPage';
 import SettingsPage from './pages/SettingsPage';
 
-type Page = 'dashboard' | 'telemetry' | 'logger' | 'settings';
-
-const NAV: { id: Page; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'telemetry', label: 'Telemetry Graphs' },
-  { id: 'logger', label: 'Data Logger' },
-  { id: 'settings', label: 'Settings' },
-];
-
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
   const [settings, setSettingsState] = useState<SystemSettings>(loadSettings);
   const [calibration, setCalibration] = useState<SensorCalibration>(loadCalibrationFromStorage);
   const [positionState, setPositionState] = useState<PositionEstimatorState>(INITIAL_POSITION_STATE);
@@ -63,7 +69,6 @@ export default function App() {
   const [packetCount, setPacketCount] = useState(0);
   const [lastPacketTime, setLastPacketTime] = useState<number | null>(null);
   const [packetRateHz, setPacketRateHz] = useState(0);
-  const [currentTimeStr, setCurrentTimeStr] = useState(() => new Date().toLocaleTimeString());
   const [activeTestScenario, setActiveTestScenarioState] = useState<TestScenarioName>('NONE');
 
   const prevTelemetryRef = useRef<ESP32Telemetry | undefined>(undefined);
@@ -77,6 +82,22 @@ export default function App() {
     setSettingsState(newSettings);
     saveSettingsToStorage(newSettings);
   }, []);
+
+  const handleToggleAudio = useCallback(() => {
+    const nextMuted = !settings.audioMuted;
+    updateSettings({
+      ...settings,
+      audioMuted: nextMuted,
+    });
+  }, [settings, updateSettings]);
+
+  const handleToggleTheme = useCallback(() => {
+    const nextTheme = settings.theme === 'light' ? 'dark' : 'light';
+    updateSettings({
+      ...settings,
+      theme: nextTheme,
+    });
+  }, [settings, updateSettings]);
 
   // Request Laptop Geolocation API Reference
   const requestLaptopLocation = useCallback(() => {
@@ -102,14 +123,6 @@ export default function App() {
   useEffect(() => {
     requestLaptopLocation();
   }, [requestLaptopLocation]);
-
-  // Header 1s Clock
-  useEffect(() => {
-    const clockId = setInterval(() => {
-      setCurrentTimeStr(new Date().toLocaleTimeString());
-    }, 1000);
-    return () => clearInterval(clockId);
-  }, []);
 
   // Packet Rate Calculator (Hz)
   useEffect(() => {
@@ -239,6 +252,19 @@ export default function App() {
   const crashRisk = rawTelemetry ? predictCrashRisk(rawTelemetry, prevTelemetryRef.current, dt) : null;
   const { estimate: positionEstimate } = updatePositionEstimate(positionState, rawTelemetry, dt);
 
+  // Critical Crash Siren Audio Triggering Handler
+  useEffect(() => {
+    setAudioMuted(settings.audioMuted || false);
+    if (crashRisk?.willCrash && hasReceivedData && !settings.audioMuted) {
+      startCrashAlarm();
+    } else {
+      stopCrashAlarm();
+    }
+    return () => {
+      stopCrashAlarm();
+    };
+  }, [crashRisk?.willCrash, hasReceivedData, settings.audioMuted]);
+
   const processed: ProcessedTelemetry = {
     raw: rawTelemetry,
     serverTimestamp: nowMs,
@@ -269,138 +295,186 @@ export default function App() {
   const handleLogStop = useCallback(() => { setLogging(false); setLogPaused(false); }, []);
   const handleLogPause = useCallback(() => setLogPaused(p => !p), []);
 
+  const isLight = settings.theme === 'light';
+
   return (
-    <div className="flex flex-col select-none" style={{ height: '100vh', background: '#080c12', overflow: 'hidden' }}>
-      {/* Top Header Navigation */}
-      <header className="flex-shrink-0 flex items-center border-b border-[#1e2a3e] bg-[#080c12]" style={{ height: 44 }}>
-        {/* Brand Logo */}
-        <button
-          onClick={() => setPage('dashboard')}
-          className="flex items-center gap-2.5 px-4 h-full border-r border-[#1e2a3e] hover:bg-[#0d1320] transition-colors"
-        >
-          <div className="w-6 h-6 border border-[#22d3ee] rounded flex items-center justify-center bg-[#22d3ee]/10">
-            <div className="w-2.5 h-2.5 bg-[#22d3ee] rounded-sm" style={{ boxShadow: '0 0 6px #22d3ee' }} />
-          </div>
-          <div className="flex flex-col items-start">
-            <span className="font-mono text-xs font-bold text-[#22d3ee] tracking-widest uppercase leading-none">AEROGUARD</span>
-            <span className="font-mono text-[8px] text-[#637087] leading-tight">LIVE UAV TELEMETRY & CRASH MONITOR</span>
-          </div>
-        </button>
+    <div className={`flex h-screen w-screen overflow-hidden font-sans select-none transition-colors ${
+      isLight ? 'bg-slate-100 text-slate-900' : 'bg-[#080c12] text-slate-100'
+    }`}>
+      
+      {/* Enterprise Left Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 md:relative md:translate-x-0 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <Sidebar
+          currentPage={page}
+          onNavigate={(p) => { setPage(p); setMobileMenuOpen(false); }}
+          esp32Connected={status.esp32Connected}
+          wsConnected={status.wsConnected}
+          packetRateHz={packetRateHz}
+          theme={settings.theme}
+        />
+      </div>
 
-        {/* Primary Navigation Tabs */}
-        <nav className="flex items-center h-full">
-          {NAV.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setPage(id)}
-              className={`px-5 h-full font-mono text-xs tracking-wider border-r border-[#1e2a3e] transition-colors ${
-                page === id
-                  ? 'text-[#38bdf8] bg-[#0ea5e9]/10 border-b-2 border-b-[#0ea5e9] font-bold'
-                  : 'text-[#637087] hover:text-white hover:bg-[#0d1320]'
-              }`}
-            >
-              {label.toUpperCase()}
-            </button>
-          ))}
-        </nav>
+      {/* Backdrop for Mobile Sidebar */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+        />
+      )}
 
-        {/* Manual Test Scenario Mode */}
-        <div className="ml-auto flex items-center gap-2 px-3">
-          <span className="font-mono text-[9px] text-[#637087] uppercase">MANUAL TEST INJECTION:</span>
-          <select
-            value={activeTestScenario}
-            onChange={e => handleSelectScenario(e.target.value as TestScenarioName)}
-            className="bg-[#0d1320] border border-[#1e2a3e] rounded px-2 py-1 font-mono text-[10px] text-[#38bdf8] outline-none"
-          >
-            <option value="NONE">DISABLED (AWAITING REAL ESP32)</option>
-            <option value="NORMAL">TEST: NORMAL FLIGHT</option>
-            <option value="HIGH_ACCELERATION">TEST: HIGH ACCELERATION</option>
-            <option value="HIGH_ANGULAR_VELOCITY">TEST: HIGH ANGULAR VELOCITY</option>
-            <option value="SUDDEN_PITCH_CHANGE">TEST: SUDDEN PITCH CHANGE</option>
-            <option value="ALTITUDE_DROP">TEST: ALTITUDE DROP</option>
-            <option value="POSSIBLE_CRASH">TEST: POSSIBLE CRASH</option>
-          </select>
-        </div>
+      {/* Main Content Viewport */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        {/* Enterprise Top Bar */}
+        <TopBar
+          currentPage={page}
+          wsConnected={status.wsConnected}
+          esp32Connected={status.esp32Connected}
+          packetRateHz={packetRateHz}
+          activeScenario={activeTestScenario}
+          onSelectScenario={handleSelectScenario}
+          onToggleMobileMenu={() => setMobileMenuOpen(p => !p)}
+          audioMuted={settings.audioMuted || false}
+          onToggleAudio={handleToggleAudio}
+          theme={settings.theme || 'dark'}
+          onToggleTheme={handleToggleTheme}
+        />
 
-        {/* Status Badges */}
-        <div className="flex items-center gap-3 px-4 border-l border-[#1e2a3e] h-full">
-          <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${hasReceivedData ? 'bg-[#22c55e]' : 'bg-[#ef4444]'}`}
-              style={{ boxShadow: hasReceivedData ? '0 0 6px #22c55e' : '0 0 6px #ef4444' }} />
-            <span className="font-mono text-[10px] font-bold" style={{ color: hasReceivedData ? '#22c55e' : '#ef4444' }}>
-              {hasReceivedData ? (status.esp32Connected ? 'ESP32 LIVE' : 'TELEMETRY RECEIVED') : 'NO TELEMETRY'}
-            </span>
+        {/* Dynamic Operational Page Area */}
+        <main className={`flex-1 overflow-hidden transition-colors ${
+          isLight ? 'bg-slate-50' : 'bg-[#060910]'
+        }`}>
+          {page === 'dashboard' && (
+            <DashboardPage
+              processed={processed}
+              telemetryHistory={telemetryHistory}
+              onCalibrate={handleStartCalibration}
+              onResetPosition={handleResetPosition}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'monitoring' && (
+            <LiveMonitoringPage
+              processed={processed}
+              history={telemetryHistory}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'telemetry' && (
+            <SensorGraphsPage
+              history={telemetryHistory}
+              running={graphRunning}
+              onToggle={() => setGraphRunning(r => !r)}
+              onClear={() => setTelemetryHistory([])}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'network' && (
+            <NetworkBridgePage
+              processed={processed}
+              laptopIp={settings.laptopIp}
+              backendPort={settings.backendPort}
+              wsPort={settings.wsPort}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'alerts' && (
+            <AlertsPage
+              processed={processed}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'health' && (
+            <SystemHealthPage
+              processed={processed}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'logger' && (
+            <DataLoggerPage
+              history={logHistory}
+              logging={logging}
+              onStart={handleLogStart}
+              onStop={handleLogStop}
+              onPause={handleLogPause}
+              logPaused={logPaused}
+              samplingHz={settings.samplingHz}
+              storagePath={settings.storage}
+              theme={settings.theme}
+            />
+          )}
+
+          {page === 'settings' && (
+            <SettingsPage
+              settings={settings}
+              onSaveSettings={updateSettings}
+              calibration={calibration}
+              onCalibrate={handleStartCalibration}
+              refLat={positionState.refLat}
+              refLon={positionState.refLon}
+              onSetRefCoords={(lat, lon) => setPositionState(prev => ({ ...prev, refLat: lat, refLon: lon, refSource: 'Manual Reference' }))}
+              onRequestLocation={requestLaptopLocation}
+              theme={settings.theme}
+            />
+          )}
+        </main>
+
+        {/* Enterprise Bottom Status Ribbon */}
+        <footer className={`h-7 border-t px-3 flex items-center justify-between text-[9px] font-mono select-none flex-shrink-0 transition-colors ${
+          isLight ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#090d16] border-slate-800 text-slate-400'
+        }`}>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span>HARDWARE:</span>
+              <span className={status.esp32Connected ? 'text-emerald-500 font-bold' : (hasReceivedData ? 'text-sky-500 font-bold' : 'text-slate-400')}>
+                {status.esp32Connected ? 'ESP32 LIVE' : (hasReceivedData ? 'PACKET RECEIVED' : 'AWAITING ESP32')}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 hidden sm:flex">
+              <span>WEBSOCKET:</span>
+              <span className={status.wsConnected ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                {status.wsConnected ? `ws://${settings.laptopIp || 'localhost'}:${settings.wsPort || 5001}` : 'OFFLINE'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 hidden md:flex">
+              <span>UDP BIND:</span>
+              <span className="text-sky-500 font-bold">PORT :{settings.backendPort || 5000}</span>
+            </div>
           </div>
-          <div className="font-mono text-[10px] text-[#637087]">
-            {currentTimeStr}
-          </div>
-        </div>
-      </header>
 
-      {/* Main Active Page View */}
-      <main className="flex-1 overflow-hidden">
-        {page === 'dashboard' && (
-          <DashboardPage
-            processed={processed}
-            telemetryHistory={telemetryHistory}
-            onCalibrate={handleStartCalibration}
-            onResetPosition={handleResetPosition}
-          />
-        )}
-        {page === 'telemetry' && (
-          <SensorGraphsPage
-            history={telemetryHistory}
-            running={graphRunning}
-            onToggle={() => setGraphRunning(r => !r)}
-            onClear={() => setTelemetryHistory([])}
-          />
-        )}
-        {page === 'logger' && (
-          <DataLoggerPage
-            history={logHistory}
-            logging={logging}
-            onStart={handleLogStart}
-            onStop={handleLogStop}
-            onPause={handleLogPause}
-            logPaused={logPaused}
-            samplingHz={settings.samplingHz}
-            storagePath={settings.storage}
-          />
-        )}
-        {page === 'settings' && (
-          <SettingsPage
-            settings={settings}
-            onSaveSettings={updateSettings}
-            calibration={calibration}
-            onCalibrate={handleStartCalibration}
-            refLat={positionState.refLat}
-            refLon={positionState.refLon}
-            onSetRefCoords={(lat, lon) => setPositionState(prev => ({ ...prev, refLat: lat, refLon: lon, refSource: 'Manual Reference' }))}
-            onRequestLocation={requestLaptopLocation}
-          />
-        )}
-      </main>
-
-      {/* Bottom Status Bar */}
-      <footer className="flex-shrink-0 flex items-center border-t border-[#1e2a3e] bg-[#080c12]" style={{ height: 28 }}>
-        {[
-          { label: 'ESP32', value: status.esp32Connected ? 'CONNECTED' : (hasReceivedData ? 'PACKET RECEIVED' : 'AWAITING DATA'), color: status.esp32Connected ? '#22c55e' : (hasReceivedData ? '#38bdf8' : '#637087') },
-          { label: 'WEBSOCKET', value: status.wsConnected ? `ws://${settings.laptopIp || 'localhost'}:${settings.wsPort || 5001}` : 'OFFLINE', color: status.wsConnected ? '#22c55e' : '#ef4444' },
-          { label: 'BACKEND', value: `PORT ${settings.backendPort || 5000}`, color: '#0ea5e9' },
-          { label: 'LOGGING', value: logging ? (logPaused ? 'PAUSED' : 'ON') : 'OFF', color: logging ? (logPaused ? '#eab308' : '#22c55e') : '#637087' },
-          { label: 'RATE', value: `${packetRateHz} Hz`, color: '#38bdf8' },
-          { label: 'LATENCY', value: lastPacketMsAgo >= 0 ? `${lastPacketMsAgo} ms` : '-- ms', color: lastPacketMsAgo >= 0 && lastPacketMsAgo < 100 ? '#22c55e' : '#637087' },
-          { label: 'BATTERY', value: rawTelemetry ? `${rawTelemetry.battery} V` : '-- V', color: rawTelemetry && rawTelemetry.battery > 3.4 ? '#22c55e' : '#637087' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="flex items-center gap-1.5 px-3 h-full border-r border-[#1e2a3e]">
-            <span className="font-mono text-[9px] text-[#637087]">{label}:</span>
-            <span className="font-mono text-[9px] font-bold" style={{ color }}>{value}</span>
+          <div className="flex items-center gap-4">
+            <div>
+              AUDIO: <strong className={settings.audioMuted ? 'text-amber-500' : 'text-emerald-500'}>
+                {settings.audioMuted ? 'MUTED' : 'ACTIVE'}
+              </strong>
+            </div>
+            <div>
+              THEME: <strong className="text-sky-500 uppercase">{settings.theme || 'DARK'}</strong>
+            </div>
+            <div>
+              RATE: <strong className="text-sky-500">{packetRateHz} Hz</strong>
+            </div>
+            <div>
+              LATENCY: <strong className={lastPacketMsAgo >= 0 && lastPacketMsAgo < 100 ? 'text-emerald-500' : 'text-slate-500'}>
+                {lastPacketMsAgo >= 0 ? `${lastPacketMsAgo} ms` : '--'}
+              </strong>
+            </div>
+            <div className="text-slate-400 hidden xl:block">
+              AERO GUARD GCS · v3.3.0
+            </div>
           </div>
-        ))}
-        <div className="ml-auto px-3 font-mono text-[9px] text-[#637087]">
-          AEROGUARD UAV TELEMETRY STATION · v3.1.0
-        </div>
-      </footer>
+        </footer>
+
+      </div>
+
     </div>
   );
 }
