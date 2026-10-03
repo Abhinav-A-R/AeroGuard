@@ -1,0 +1,10 @@
+{
+  "description": "Simplifies complex tasks with an intuitive interface, enhancing productivity and user experience for professionals and everyday users alike.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

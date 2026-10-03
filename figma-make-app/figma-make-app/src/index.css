@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: #080c12;
+  --color-foreground: #d4dae6;
+  --color-card: #0d1320;
+  --color-card-border: #1e2a3e;
+  --color-primary: #0ea5e9;
+  --color-primary-dim: #0369a1;
+  --color-accent: #22d3ee;
+  --color-muted: #1a2236;
+  --color-muted-fg: #637087;
+  --color-status-green: #22c55e;
+  --color-status-red: #ef4444;
+  --color-status-yellow: #eab308;
+  --color-status-blue: #38bdf8;
+  --color-status-gray: #4b5563;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #080c12;
+  color: #d4dae6;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2a3e;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3a54;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #0d1320 !important;
+  border: 1px solid #1e2a3e !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.recharts-cartesian-grid line {
+  stroke: #1e2a3e;
+}
+
+.recharts-text {
+  fill: #637087;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
