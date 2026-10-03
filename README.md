@@ -153,7 +153,12 @@ Open your browser at **`http://localhost:8443/`** to view the live dashboard.
 ## How to Run Locally
 Clone the repository:
 
+* **TO Demo**:
+  ```powershell
+ https://aero-guard-khaki.vercel.app/
+  ```
+
 * **TO RUN LOCALL**:
   ```powershell
-  git clone 
+  git clone https://github.com/Abhinav-A-R/AeroGuard.git
   ```
