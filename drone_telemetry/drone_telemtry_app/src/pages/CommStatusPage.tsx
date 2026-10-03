@@ -71,9 +71,9 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
 
   return (
     <div className="h-full overflow-y-auto p-4 select-none">
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Vertical flow */}
-        <div className="col-span-1 flex flex-col items-center pt-4 space-y-2">
+        <div className="col-span-1 lg:col-span-1 flex flex-col items-center pt-4 space-y-2">
           <div className="font-mono text-[10px] text-[#637087] uppercase tracking-widest mb-2">Data Path Architecture</div>
           <DeviceCard name="MPU6050" status="ACTIVE" port="I2C-0x68" baud="400kHz" pktRate={settings?.imuRate || 100} lastPkt={now} errors={0} latency={2} color="#22d3ee" />
           <FlowArrow label="IMU → MCU" color="#22c55e" active />
@@ -87,7 +87,7 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
         </div>
 
         {/* Right panels */}
-        <div className="col-span-4 space-y-3">
+        <div className="col-span-1 lg:col-span-4 space-y-3">
           <div className="text-[10px] font-mono text-[#637087] uppercase tracking-widest mb-1">Communication Channels</div>
 
           {/* ESP32 → Laptop */}
@@ -96,7 +96,7 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
               <div className="w-2 h-2 rounded-full bg-[#22c55e]" style={{ boxShadow: '0 0 6px #22c55e' }} />
               <span className="font-mono text-xs font-bold text-[#22c55e]">ESP32 → LAPTOP (Sensor Input)</span>
             </div>
-            <div className="grid grid-cols-5 gap-3 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
               <div><div className="text-[#637087] text-[9px]">PROTOCOL</div><div className="text-white">Serial/UART</div></div>
               <div><div className="text-[#637087] text-[9px]">BAUD</div><div className="text-white">115200</div></div>
               <div><div className="text-[#637087] text-[9px]">PACKET RATE</div><div className="text-[#22c55e]">100/s</div></div>
@@ -111,7 +111,7 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
               <div className="w-2 h-2 rounded-full bg-[#eab308]" style={{ boxShadow: '0 0 6px #eab308' }} />
               <span className="font-mono text-xs font-bold text-[#eab308]">LAPTOP → STM32 (Control Commands)</span>
             </div>
-            <div className="grid grid-cols-5 gap-3 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
               <div><div className="text-[#637087] text-[9px]">PROTOCOL</div><div className="text-white">Serial/USB</div></div>
               <div><div className="text-[#637087] text-[9px]">BAUD</div><div className="text-white">115200</div></div>
               <div><div className="text-[#637087] text-[9px]">CMD RATE</div><div className="text-[#eab308]">50/s</div></div>
@@ -126,7 +126,7 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
               <div className="w-2 h-2 rounded-full bg-[#a78bfa]" style={{ boxShadow: '0 0 6px #a78bfa' }} />
               <span className="font-mono text-xs font-bold text-[#a78bfa]">STM32 → LAPTOP (Telemetry Feedback)</span>
             </div>
-            <div className="grid grid-cols-5 gap-3 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
               <div><div className="text-[#637087] text-[9px]">PROTOCOL</div><div className="text-white">Serial/USB</div></div>
               <div><div className="text-[#637087] text-[9px]">BAUD</div><div className="text-white">115200</div></div>
               <div><div className="text-[#637087] text-[9px]">TELEM RATE</div><div className="text-[#a78bfa]">50/s</div></div>
@@ -138,7 +138,7 @@ export default function CommStatusPage({ current, packetCount, settings }: Props
           {/* System health */}
           <div className="bg-[#0d1320] border border-[#1e2a3e] rounded p-4">
             <div className="font-mono text-[10px] text-[#637087] uppercase tracking-widest mb-3">System Health</div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'CPU Usage', value: '12%', color: '#22c55e' },
                 { label: 'Memory', value: '234 MB', color: '#38bdf8' },

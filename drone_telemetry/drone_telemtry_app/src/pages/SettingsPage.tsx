@@ -79,7 +79,7 @@ export default function SettingsPage({
               ESP32 + BACKEND
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className={`text-[9px] uppercase tracking-widest block mb-1 ${
                 isLight ? 'text-slate-500' : 'text-[#637087]'
@@ -140,7 +140,7 @@ export default function SettingsPage({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={`text-[9px] uppercase tracking-widest block mb-1 ${
                 isLight ? 'text-slate-500' : 'text-[#637087]'
@@ -196,7 +196,7 @@ export default function SettingsPage({
             </span>
           </div>
 
-          <div className="grid grid-cols-6 gap-2 text-xs text-center">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs text-center">
             {['AX', 'AY', 'AZ', 'GX', 'GY', 'GZ'].map((axis, i) => {
               const keys = ['axBias', 'ayBias', 'azBias', 'gxBias', 'gyBias', 'gzBias'] as const;
               const val = calibration ? calibration[keys[i]] : 0;

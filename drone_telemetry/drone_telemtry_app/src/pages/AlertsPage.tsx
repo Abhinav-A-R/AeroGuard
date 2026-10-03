@@ -45,6 +45,17 @@ export default function AlertsPage({ processed, theme = 'dark' }: AlertsPageProp
     });
   }
 
+  if (crashRisk?.mlPrediction && crashRisk.mlPrediction.mlProbability > 20) {
+    alerts.push({
+      id: 'ml-ai-agent-1',
+      severity: crashRisk.mlPrediction.mlProbability > 65 ? 'CRITICAL' : 'WARNING',
+      timestamp: new Date().toLocaleTimeString(),
+      source: 'AIAgent_MLModel',
+      description: `[AI AGENT ML MODEL] Predicted crash probability ${crashRisk.mlPrediction.mlProbability}% (${crashRisk.mlPrediction.earlyWarningMs}ms early warning). ${crashRisk.mlPrediction.aiAgentRecommendation}`,
+      state: acknowledged['ml-ai-agent-1'] ? 'ACKNOWLEDGED' : 'ACTIVE',
+    });
+  }
+
   if (raw && raw.battery > 0 && raw.battery < 3.4) {
     alerts.push({
       id: 'batt-low-1',

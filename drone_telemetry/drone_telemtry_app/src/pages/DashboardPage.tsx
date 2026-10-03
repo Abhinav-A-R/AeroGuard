@@ -238,7 +238,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
         </div>
 
         {/* Physical Metrics Grid */}
-        <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           {[
             { label: 'G-FORCE ACCEL MAG', val: hasData && crashRisk ? `${crashRisk.accelMag} m/s²` : '--', limit: 'Threshold: >20 m/s²' },
             { label: 'ROTATIONAL SPIN RATE', val: hasData && crashRisk ? `${crashRisk.gyroMag} °/s` : '--', limit: 'Threshold: >180 °/s' },
@@ -256,7 +256,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
         </div>
 
         {/* Active Risk Trigger Reasons */}
-        <div className={`p-2.5 rounded border flex items-center justify-between ${
+        <div className={`p-2.5 rounded border flex items-center justify-between mb-3 ${
           isLight ? 'bg-white border-slate-200' : 'bg-black/60 border-white/10'
         }`}>
           <div className="flex items-center gap-2 font-mono text-xs">
@@ -278,10 +278,99 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
             )}
           </div>
         </div>
+
+        {/* 🤖 AI SAFETY AGENT & MACHINE LEARNING ULTRA-FAST CRASH PREDICTOR */}
+        {hasData && crashRisk?.mlPrediction && (
+          <div className={`p-3 rounded-lg border font-mono transition-all duration-300 ${
+            isLight ? 'bg-gradient-to-r from-sky-50 to-indigo-50 border-indigo-200' : 'bg-gradient-to-r from-[#0a1526] to-[#0d1b2a] border-indigo-500/40'
+          }`}>
+            <div className="flex items-center justify-between border-b pb-2 mb-2.5 border-indigo-500/20">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🤖</span>
+                <span className={`text-xs font-bold tracking-wider uppercase ${isLight ? 'text-indigo-900' : 'text-indigo-300'}`}>
+                  AI SAFETY AGENT & ML CRASH PREDICTOR
+                </span>
+                <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                  crashRisk.mlPrediction.aiAgentStatus === 'CRITICAL' ? 'bg-rose-500 text-white border-rose-600 animate-ping' :
+                  crashRisk.mlPrediction.aiAgentStatus === 'INTERVENING' ? 'bg-amber-500 text-black border-amber-600 animate-pulse' :
+                  crashRisk.mlPrediction.aiAgentStatus === 'MONITORING' ? 'bg-sky-500 text-white border-sky-600' :
+                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                }`}>
+                  AI AGENT: {crashRisk.mlPrediction.aiAgentStatus}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px]">
+                <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>
+                  ML INFERENCE: <strong className={isLight ? 'text-slate-900' : 'text-white'}>{crashRisk.mlPrediction.inferenceTimeMs} ms</strong>
+                </span>
+                <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>
+                  CONFIDENCE: <strong className="text-emerald-400">{crashRisk.mlPrediction.mlConfidence}%</strong>
+                </span>
+                {crashRisk.mlPrediction.earlyWarningMs > 0 && (
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-bold">
+                    ⚡ {crashRisk.mlPrediction.earlyWarningMs}ms EARLY WARNING
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Probability & Anomaly Gauge */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center mb-2.5">
+              <div className="col-span-1 md:col-span-4 border-b md:border-b-0 md:border-r pb-2 md:pb-0 pr-0 md:pr-3 border-indigo-500/20">
+                <div className="flex justify-between text-[10px] mb-1">
+                  <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>ML PREDICTED CRASH RISK:</span>
+                  <span className="font-bold text-indigo-400">{crashRisk.mlPrediction.mlProbability}%</span>
+                </div>
+                <div className={`w-full h-2 rounded-full overflow-hidden border p-0.5 ${isLight ? 'bg-slate-200 border-slate-300' : 'bg-black/80 border-white/10'}`}>
+                  <div 
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{ 
+                      width: `${Math.max(4, crashRisk.mlPrediction.mlProbability)}%`,
+                      backgroundColor: crashRisk.mlPrediction.mlProbability > 50 ? '#ef4444' : crashRisk.mlPrediction.mlProbability > 20 ? '#f59e0b' : '#3b82f6',
+                      boxShadow: '0 0 6px rgba(99,102,241,0.6)'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="col-span-1 md:col-span-8">
+                <div className={`text-[10px] font-semibold p-1.5 rounded border ${
+                  crashRisk.mlPrediction.aiAgentStatus === 'CRITICAL' ? 'bg-rose-950/60 text-rose-300 border-rose-500/50' :
+                  crashRisk.mlPrediction.aiAgentStatus === 'INTERVENING' ? 'bg-amber-950/60 text-amber-300 border-amber-500/50' :
+                  isLight ? 'bg-white text-indigo-950 border-indigo-200' : 'bg-black/50 text-indigo-200 border-indigo-500/30'
+                }`}>
+                  {crashRisk.mlPrediction.aiAgentRecommendation}
+                </div>
+              </div>
+            </div>
+
+            {/* Explainable AI Feature Importances */}
+            <div>
+              <div className={`text-[9px] uppercase tracking-wider mb-1.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                EXPLAINABLE AI (XAI) — SENSOR FEATURE IMPORTANCE CONTRIBUTION:
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-[9px]">
+                {crashRisk.mlPrediction.featureImportances.map((item) => (
+                  <div key={item.feature} className={`p-1.5 rounded border ${isLight ? 'bg-white border-slate-200' : 'bg-black/40 border-indigo-500/20'}`}>
+                    <div className="flex justify-between font-bold mb-0.5">
+                      <span className="truncate" title={item.feature}>{item.feature.split(' ')[0]}</span>
+                      <span className="text-indigo-400">{item.importance}%</span>
+                    </div>
+                    <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${item.importance}%` }} />
+                    </div>
+                    <div className="text-[8px] text-slate-400 text-right mt-0.5">{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 📐 PROMINENT SECTION 2: APPROXIMATE DISTANCE, POSITION & GPS BOARD */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
         {/* Highlight Tile A: APPROXIMATE DISTANCE FROM LAPTOP */}
         <div className={`border-2 rounded-lg p-3.5 space-y-3 ${
@@ -448,7 +537,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
       </div>
 
       {/* Connection Quick Bar */}
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <StatCard 
           label="ESP32 Telemetry" 
           value={hasData ? (status.esp32Connected ? 'CONNECTED' : 'DISCONNECTED') : 'AWAITING ESP32'} 
@@ -491,7 +580,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
       </div>
 
       {/* Main Grid Row 3: IMU Sensor Telemetry Cards + Artificial Horizon PFD */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Accelerometer */}
         <div className={`col-span-1 border rounded p-3 space-y-2 ${
           isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f172a] border-slate-800'
@@ -568,7 +657,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
       </div>
 
       {/* Main Grid Row 4: Scrolling Live Telemetry Mini Graphs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <MiniGraph data={telemetryHistory} dataKey="roll" color={isLight ? '#059669' : '#22c55e'} label="Roll (°)" isLight={isLight} />
         <MiniGraph data={telemetryHistory} dataKey="pitch" color={isLight ? '#d97706' : '#eab308'} label="Pitch (°)" isLight={isLight} />
         <MiniGraph data={telemetryHistory} dataKey="ax" color={isLight ? '#0284c7' : '#22d3ee'} label="Accel X (m/s²)" isLight={isLight} />

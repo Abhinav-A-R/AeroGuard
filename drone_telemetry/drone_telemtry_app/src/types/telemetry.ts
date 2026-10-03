@@ -16,6 +16,8 @@ export interface ESP32Telemetry {
   rssi?: number;         // Wi-Fi Signal Strength in dBm (e.g. -55 dBm)
 }
 
+import type { MLPredictionResult } from '../utils/mlCrashModel';
+
 export type CrashRiskLevel = 'NORMAL' | 'LOW RISK' | 'MEDIUM RISK' | 'HIGH RISK' | 'CRITICAL';
 
 export interface CrashRiskStatus {
@@ -29,6 +31,7 @@ export interface CrashRiskStatus {
   gyroMag: number;           // Angular velocity magnitude (deg/s)
   jerk: number;              // Rate of change of acceleration (m/s^3)
   altRate: number;           // Rate of change of altitude (m/s)
+  mlPrediction?: MLPredictionResult; // High-speed Machine Learning Inference & AI Agent Result
 }
 
 export interface PositionEstimate {

@@ -1,4 +1,5 @@
 import type { ESP32Telemetry, CrashRiskStatus, CrashRiskLevel } from '../types/telemetry';
+import { evaluateMLCrashModel } from './mlCrashModel';
 
 export function calculateAccelerationMagnitude(ax: number, ay: number, az: number): number {
   return Math.sqrt(ax * ax + ay * ay + az * az);
@@ -137,6 +138,8 @@ export function predictCrashRisk(curr: ESP32Telemetry, prev?: ESP32Telemetry, dt
     willCrash = false;
   }
 
+  const mlPrediction = evaluateMLCrashModel(curr, prev, dt);
+
   return {
     level,
     score: Math.min(100, score),
@@ -148,5 +151,6 @@ export function predictCrashRisk(curr: ESP32Telemetry, prev?: ESP32Telemetry, dt
     gyroMag: +gyroMag.toFixed(2),
     jerk: +jerk.toFixed(2),
     altRate: +altAnomaly.rate.toFixed(2),
+    mlPrediction,
   };
 }

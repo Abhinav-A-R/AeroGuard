@@ -1,5 +1,6 @@
 {
-  "description": "Simplifies complex tasks with an intuitive interface, enhancing productivity and user experience for professionals and everyday users alike.",
+  "title": "AeroGuard - Drone Data Logger",
+  "description": "Real-time UAV telemetry web app and crash anomaly detector",
   "robots": {
     "index": false
   },
