@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import type { ProcessedTelemetry, ESP32Telemetry } from '../types/telemetry';
+import type { TestScenarioName } from '../services/websocketClient';
 
 interface DashboardProps {
   processed: ProcessedTelemetry;
   telemetryHistory: ESP32Telemetry[];
   onCalibrate: () => void;
   onResetPosition: () => void;
+  onSelectScenario?: (scenario: TestScenarioName) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -140,7 +142,7 @@ function ArtificialHorizonPFD({ roll = 0, pitch = 0, yaw = 0, active = false, is
   );
 }
 
-export default function DashboardPage({ processed, telemetryHistory, onCalibrate, onResetPosition, theme = 'dark' }: DashboardProps) {
+export default function DashboardPage({ processed, telemetryHistory, onCalibrate, onResetPosition, onSelectScenario, theme = 'dark' }: DashboardProps) {
   const { raw, crashRisk, position, calibration, status } = processed;
   const [copiedGps, setCopiedGps] = useState(false);
 
@@ -184,7 +186,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
           (isLight ? 'bg-emerald-50/60 border-emerald-400 shadow-emerald-100' : 'bg-[#062016] border-emerald-500 shadow-emerald-950/30')
         }`}
       >
-        <div className={`flex items-center justify-between border-b pb-3 mb-3 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 border-b pb-3 mb-3 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
           <div className="flex items-center gap-3">
             <div className={`w-3.5 h-3.5 rounded-full ${!hasData ? 'bg-slate-400' : willCrash ? 'bg-rose-500 animate-ping' : motionState === 'UNUSUAL MOTION' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
             <div>
@@ -203,6 +205,30 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Safe Software Crash Simulation Test Button */}
+            {onSelectScenario && (
+              <button
+                onClick={() => {
+                  if (status.activeScenario === 'POSSIBLE_CRASH') {
+                    onSelectScenario('NONE');
+                  } else {
+                    onSelectScenario('POSSIBLE_CRASH');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md font-mono text-xs font-bold border transition-all flex items-center gap-1.5 shadow-md ${
+                  status.activeScenario === 'POSSIBLE_CRASH'
+                    ? 'bg-rose-600 text-white border-rose-700 animate-pulse hover:bg-rose-700'
+                    : isLight
+                    ? 'bg-rose-100 border-rose-300 text-rose-800 hover:bg-rose-200'
+                    : 'bg-rose-950/60 border-rose-500/50 text-rose-300 hover:bg-rose-900/80'
+                }`}
+                title="Safely test AI Safety Agent, siren alarms, and ML crash models without physical drone impact"
+              >
+                <span>⚡</span>
+                <span>{status.activeScenario === 'POSSIBLE_CRASH' ? 'STOP CRASH DEMO' : 'SAFE DEMO CRASH ALARM'}</span>
+              </button>
+            )}
+
             {/* Motion State Badge */}
             <div className={`px-3 py-1.5 rounded-md border font-mono text-xs font-black tracking-wider uppercase ${motionBg}`}>
               {motionState === 'STANDBY' ? 'MOTION: STANDBY' : `MOTION: ${motionState}`}
@@ -381,10 +407,10 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
               <span className="text-base text-sky-500">📐</span>
               <span>APPROXIMATE DISTANCE</span>
             </div>
-            <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded ${
-              isLight ? 'bg-sky-100 text-sky-800 font-bold' : 'bg-sky-950 text-sky-400 border border-sky-500/30'
+            <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded font-bold ${
+              isLight ? 'bg-sky-100 text-sky-800' : 'bg-sky-950 text-sky-400 border border-sky-500/30'
             }`}>
-              3D RANGE
+              PROTOTYPE SCALE (CM / M)
             </span>
           </div>
 
@@ -392,30 +418,40 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
             isLight ? 'bg-sky-50/50 border-sky-200' : 'bg-[#080c12] border-sky-500/30'
           }`}>
             <div className={`text-[9px] font-mono uppercase tracking-wider mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>DIRECT 3D SLANT DISTANCE FROM LAPTOP</div>
-            <div className={`font-mono text-3xl font-black ${isLight ? 'text-sky-700' : 'text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]'}`}>
-              {position.distanceFromLaptop} <span className={`text-base font-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>meters</span>
+            <div className={`font-mono text-2xl md:text-3xl font-black ${isLight ? 'text-sky-700' : 'text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]'}`}>
+              {position.distanceFromLaptopCm ?? Math.round(position.distanceFromLaptop * 100)} <span className="text-base font-bold">cm</span>
+              <span className={`text-xs font-normal ml-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>({position.distanceFromLaptop} m)</span>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
             <div className={`p-2 rounded border text-center ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#080c12] border-slate-800'}`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>2D GROUND DIST</div>
-              <div className={`font-bold text-sm ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>{position.groundDistance} m</div>
+              <div className={`font-bold text-xs sm:text-sm ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                {position.groundDistanceCm ?? Math.round(position.groundDistance * 100)} cm
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{position.groundDistance} m</div>
             </div>
             <div className={`p-2 rounded border text-center ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#080c12] border-slate-800'}`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>ALTITUDE (Z)</div>
-              <div className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>{position.relZ} m</div>
+              <div className={`font-bold text-xs sm:text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {position.relZCm ?? Math.round(position.relZ * 100)} cm
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{position.relZ} m</div>
             </div>
             <div className={`p-2 rounded border text-center ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#080c12] border-slate-800'}`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>WI-FI RSSI RANGE</div>
-              <div className={`font-bold text-sm ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
-                {position.wifiDistance > 0 ? `${position.wifiDistance} m` : '--'}
+              <div className={`font-bold text-xs sm:text-sm ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
+                {position.wifiDistance > 0 ? `${Math.round(position.wifiDistance * 100)} cm` : '--'}
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                {position.wifiDistance > 0 ? `${position.wifiDistance} m` : 'Hotspot Aux'}
               </div>
             </div>
           </div>
 
           <div className={`text-[8px] font-mono leading-tight ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Distance derived from 3D vector $\sqrt&#123;X^2 + Y^2 + Z^2&#125;$ & Wi-Fi log-distance path loss.
+            Dual centimeter & meter scale tuned for small prototype drone live spatial testing.
           </div>
         </div>
 
@@ -443,7 +479,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
               isLight ? 'bg-emerald-50/40 border-emerald-200' : 'bg-[#080c12] border-emerald-500/40'
             }`}>
               <div className={`text-[8px] font-mono uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>APPROX LATITUDE</div>
-              <div className={`font-mono text-lg font-black ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+              <div className={`font-mono text-base sm:text-lg font-black ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                 {position.droneLat}° N
               </div>
               <div className={`text-[8px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Ref: {position.refLat}°</div>
@@ -452,7 +488,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
               isLight ? 'bg-emerald-50/40 border-emerald-200' : 'bg-[#080c12] border-emerald-500/40'
             }`}>
               <div className={`text-[8px] font-mono uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>APPROX LONGITUDE</div>
-              <div className={`font-mono text-lg font-black ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+              <div className={`font-mono text-base sm:text-lg font-black ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                 {position.droneLon}° E
               </div>
               <div className={`text-[8px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Ref: {position.refLon}°</div>
@@ -467,7 +503,7 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
           </div>
 
           <div className={`text-[8px] font-mono leading-tight ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Drone GPS calculated using Laptop reference coordinate + local inertial displacement conversion.
+            Live real-time 7-decimal-place GPS coordinate conversion from Laptop reference origin.
           </div>
         </div>
 
@@ -495,22 +531,28 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
               isLight ? 'bg-purple-50/50 border-purple-200' : 'bg-[#080c12] border-purple-500/40'
             }`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>REL X (EAST)</div>
-              <div className={`font-black text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>{position.relX} m</div>
-              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Vx: {position.vx} m/s</div>
+              <div className={`font-black text-xs sm:text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {position.relXCm ?? Math.round(position.relX * 100)} cm
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{position.relX} m | Vx: {position.vx} m/s</div>
             </div>
             <div className={`p-2 rounded border text-center ${
               isLight ? 'bg-purple-50/50 border-purple-200' : 'bg-[#080c12] border-purple-500/40'
             }`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>REL Y (NORTH)</div>
-              <div className={`font-black text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>{position.relY} m</div>
-              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Vy: {position.vy} m/s</div>
+              <div className={`font-black text-xs sm:text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {position.relYCm ?? Math.round(position.relY * 100)} cm
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{position.relY} m | Vy: {position.vy} m/s</div>
             </div>
             <div className={`p-2 rounded border text-center ${
               isLight ? 'bg-purple-50/50 border-purple-200' : 'bg-[#080c12] border-purple-500/40'
             }`}>
               <div className={`text-[8px] uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>REL Z (UP)</div>
-              <div className={`font-black text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>{position.relZ} m</div>
-              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Vz: {position.vz} m/s</div>
+              <div className={`font-black text-xs sm:text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {position.relZCm ?? Math.round(position.relZ * 100)} cm
+              </div>
+              <div className={`text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{position.relZ} m | Vz: {position.vz} m/s</div>
             </div>
           </div>
 
@@ -524,13 +566,13 @@ export default function DashboardPage({ processed, telemetryHistory, onCalibrate
             <div className={`px-2 py-1 rounded font-mono text-[9px] flex items-center justify-between border ${
               isLight ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-400'
             }`}>
-              <span>✓ ZUPT INERTIAL STABILITY</span>
+              <span>✓ INERTIAL TILT KINEMATICS</span>
               <span className="font-bold">CONFIDENCE: {position.confidence}</span>
             </div>
           )}
 
           <div className={`text-[8px] font-mono leading-tight ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Inertial double integration with Zero-Velocity Update (ZUPT) drift cancellation.
+            Live zero-delay spatial tilt-kinematic position estimator tuned for small prototype drones.
           </div>
         </div>
 

@@ -17,7 +17,7 @@ export interface SystemSettings {
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
-  laptopIp: '192.168.43.20',
+  laptopIp: typeof window !== 'undefined' ? (window.location.hostname || 'localhost') : 'localhost',
   backendPort: 5000,
   wsPort: 5001,
   samplingHz: 20,
@@ -40,7 +40,11 @@ export function loadSettings(): SystemSettings {
   try {
     const saved = localStorage.getItem(SETTINGS_KEY);
     if (saved) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      if (parsed.laptopIp === '192.168.43.20' || parsed.laptopIp === '192.168.43.1') {
+        parsed.laptopIp = typeof window !== 'undefined' ? (window.location.hostname || 'localhost') : 'localhost';
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
     }
   } catch (e) {
     console.error('Failed to load settings from localStorage', e);

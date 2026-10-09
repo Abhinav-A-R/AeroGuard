@@ -1,5 +1,5 @@
 import type { ESP32Telemetry, CrashRiskStatus, CrashRiskLevel } from '../types/telemetry';
-import { evaluateMLCrashModel } from './mlCrashModel';
+import { evaluateMLCrashModel, getAccelInG } from './mlCrashModel';
 
 export function calculateAccelerationMagnitude(ax: number, ay: number, az: number): number {
   return Math.sqrt(ax * ax + ay * ay + az * az);
@@ -17,7 +17,7 @@ export function calculateJerk(currMag: number, prevMag: number, dt: number): num
 export function detectOrientationAnomaly(roll: number, pitch: number): { isAnomaly: boolean; reason?: string } {
   const absRoll = Math.abs(roll);
   const absPitch = Math.abs(pitch);
-  if (absRoll > 65 || absPitch > 55) {
+  if (absRoll > 48 || absPitch > 45) {
     return { isAnomaly: true, reason: `Excessive tilt angle (Roll: ${roll.toFixed(1)}°, Pitch: ${pitch.toFixed(1)}°)` };
   }
   return { isAnomaly: false };
@@ -26,7 +26,7 @@ export function detectOrientationAnomaly(roll: number, pitch: number): { isAnoma
 export function detectAltitudeAnomaly(currAlt: number, prevAlt: number, dt: number): { isAnomaly: boolean; rate: number; reason?: string } {
   if (dt <= 0 || dt > 2.0) return { isAnomaly: false, rate: 0 };
   const altRate = (currAlt - prevAlt) / dt;
-  if (altRate < -6.0) { // Rapid descent / freefall
+  if (altRate < -1.8) { // Rapid descent / freefall for low-altitude (~1.5m-2m man's height) flight
     return { isAnomaly: true, rate: altRate, reason: `Rapid altitude drop (${altRate.toFixed(1)} m/s)` };
   }
   return { isAnomaly: false, rate: altRate };
@@ -41,7 +41,7 @@ export function detectTelemetryAnomaly(dt: number): { isAnomaly: boolean; reason
 
 /**
  * Modular crash risk calculator based on multi-indicator physical metrics.
- * Designed to be replaced with a trained ML classifier function predictCrashRisk(telemetry) later.
+ * Tuned specifically for low-altitude (~1.5m-2.0m man's height) micro-drone flight dynamics.
  */
 export function predictCrashRisk(curr: ESP32Telemetry, prev?: ESP32Telemetry, dt: number = 0.05): CrashRiskStatus {
   const accelMag = calculateAccelerationMagnitude(curr.ax, curr.ay, curr.az);
@@ -55,55 +55,60 @@ export function predictCrashRisk(curr: ESP32Telemetry, prev?: ESP32Telemetry, dt
   const orientAnomaly = detectOrientationAnomaly(curr.roll, curr.pitch);
   const telemAnomaly = detectTelemetryAnomaly(dt);
 
+  const accelG = getAccelInG(curr.ax, curr.ay, curr.az);
+  const isStationary = Math.abs(curr.roll) < 6.0 && Math.abs(curr.pitch) < 6.0 && gyroMag < 25.0 && accelG.magG > 0.80 && accelG.magG < 1.25;
+
   const reasons: string[] = [];
   let score = 0;
 
-  // 1. Acceleration Spikes (> 2.5G = 24.5 m/s^2)
-  if (accelMag > 28.0) {
-    score += 40;
-    reasons.push(`Severe acceleration impact (${accelMag.toFixed(1)} m/s²)`);
-  } else if (accelMag > 20.0) {
-    score += 20;
-    reasons.push(`High acceleration spike (${accelMag.toFixed(1)} m/s²)`);
-  }
+  if (!isStationary) {
+    // 1. Low-Altitude Micro-Drone Impact Accel (> 24 m/s^2 = ~2.45G)
+    if (accelMag > 24.0) {
+      score += 40;
+      reasons.push(`Low-height impact crash shock (${accelMag.toFixed(1)} m/s²)`);
+    } else if (accelMag > 18.0) {
+      score += 20;
+      reasons.push(`High acceleration spike (${accelMag.toFixed(1)} m/s²)`);
+    }
 
-  // 2. High Jerk (sudden impulse)
-  if (jerk > 60.0) {
-    score += 20;
-    reasons.push(`Sudden impulse / high jerk (${jerk.toFixed(1)} m/s³)`);
-  }
+    // 2. High Jerk (sudden impact shockwave > 45 m/s^3)
+    if (jerk > 45.0) {
+      score += 20;
+      reasons.push(`Sudden impulse shockwave (${jerk.toFixed(1)} m/s³)`);
+    }
 
-  // 3. Angular Velocity Spikes (> 250 deg/s)
-  if (gyroMag > 300.0) {
-    score += 35;
-    reasons.push(`Extreme rotational spin rate (${gyroMag.toFixed(0)} °/s)`);
-  } else if (gyroMag > 180.0) {
-    score += 15;
-    reasons.push(`High angular velocity (${gyroMag.toFixed(0)} °/s)`);
-  }
+    // 3. Angular Velocity Tumbling Spikes (> 280 deg/s for low-height flight)
+    if (gyroMag > 280.0) {
+      score += 35;
+      reasons.push(`Uncontrolled tumbling spin (${gyroMag.toFixed(0)} °/s)`);
+    } else if (gyroMag > 190.0) {
+      score += 15;
+      reasons.push(`High angular spin rate (${gyroMag.toFixed(0)} °/s)`);
+    }
 
-  // 4. Abnormal Orientation / Extreme Tilt
-  if (orientAnomaly.isAnomaly && orientAnomaly.reason) {
-    score += 25;
-    reasons.push(orientAnomaly.reason);
-  }
+    // 4. Abnormal Orientation / Extreme Upside-down Tilt
+    if (orientAnomaly.isAnomaly && orientAnomaly.reason) {
+      score += 25;
+      reasons.push(orientAnomaly.reason);
+    }
 
-  // 5. Altitude Drop / Freefall
-  if (altAnomaly.isAnomaly && altAnomaly.reason) {
-    score += 25;
-    reasons.push(altAnomaly.reason);
-  }
+    // 5. Altitude Drop / Freefall
+    if (altAnomaly.isAnomaly && altAnomaly.reason) {
+      score += 25;
+      reasons.push(altAnomaly.reason);
+    }
 
-  // 6. Telemetry Dropout
-  if (telemAnomaly.isAnomaly && telemAnomaly.reason) {
-    score += 15;
-    reasons.push(telemAnomaly.reason);
-  }
+    // 6. Telemetry Dropout
+    if (telemAnomaly.isAnomaly && telemAnomaly.reason) {
+      score += 15;
+      reasons.push(telemAnomaly.reason);
+    }
 
-  // 7. Critical Low Battery (< 3.3V)
-  if (curr.battery > 0 && curr.battery < 3.3) {
-    score += 20;
-    reasons.push(`Critical battery voltage warning (${curr.battery.toFixed(2)}V)`);
+    // 7. Critical Low Battery (< 3.3V)
+    if (curr.battery > 0 && curr.battery < 3.3) {
+      score += 20;
+      reasons.push(`Critical battery voltage warning (${curr.battery.toFixed(2)}V)`);
+    }
   }
 
   let level: CrashRiskLevel = 'NORMAL';

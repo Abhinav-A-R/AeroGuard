@@ -9,6 +9,7 @@ export interface PositionEstimatorState {
   vz: number;         // Velocity Z (m/s)
   refLat: number;     // Laptop Initial Reference Latitude (deg)
   refLon: number;     // Laptop Initial Reference Longitude (deg)
+  refAlt: number | null; // Initial Reference Altitude (meters)
   refSource: 'Laptop Geolocation' | 'Manual Reference' | 'Default Reference';
   stationaryTime: number; // Time stationary for ZUPT
   driftTimer: number;     // Continuous integration seconds
@@ -23,6 +24,7 @@ export const INITIAL_POSITION_STATE: PositionEstimatorState = {
   vz: 0,
   refLat: 28.6139,    // Default Laptop Geolocation Reference
   refLon: 77.2090,
+  refAlt: null,
   refSource: 'Default Reference',
   stationaryTime: 0,
   driftTimer: 0,
@@ -113,8 +115,13 @@ export function updatePositionEstimate(
         relX: +state.x.toFixed(2),
         relY: +state.y.toFixed(2),
         relZ: +state.z.toFixed(2),
+        relXCm: Math.round(state.x * 100),
+        relYCm: Math.round(state.y * 100),
+        relZCm: Math.round(state.z * 100),
         distanceFromLaptop: +distanceFromLaptop.toFixed(2),
+        distanceFromLaptopCm: Math.round(distanceFromLaptop * 100),
         groundDistance: +groundDistance.toFixed(2),
+        groundDistanceCm: Math.round(groundDistance * 100),
         wifiDistance: 0,
         vx: +state.vx.toFixed(2),
         vy: +state.vy.toFixed(2),
@@ -142,26 +149,72 @@ export function updatePositionEstimate(
     telemetry.yaw
   );
 
-  // Subtract gravity from World Z acceleration
+  // Net accelerations in world frame
   const netAx = axW;
   const netAy = ayW;
   const netAz = azW - 9.81;
 
-  // Zero Velocity Update (ZUPT) stationary detection
-  const accelMag = Math.sqrt(telemetry.ax ** 2 + telemetry.ay ** 2 + telemetry.az ** 2);
-  const gyroMag = Math.sqrt(telemetry.gx ** 2 + telemetry.gy ** 2 + telemetry.gz ** 2);
-  const isStationary = Math.abs(accelMag - 9.81) < 0.35 && gyroMag < 4.0;
+  // Vibration Deadband Check for Micro-Drones (DM002)
+  // When sitting on desk or holding flat with motor vibration:
+  // - Small tilt angles (< 3.5°) are motor vibration / IMU sensor jitter, NOT intentional velocity vectors.
+  // - Small net horizontal accelerations (< 0.4 m/s²) are motor vibration noise.
+  const absPitch = Math.abs(telemetry.pitch);
+  const absRoll = Math.abs(telemetry.roll);
+  const isLowTilt = absPitch < 3.5 && absRoll < 3.5;
+  const netHorizontalAccel = Math.sqrt(netAx * netAx + netAy * netAy);
+  const isLowAccel = netHorizontalAccel < 0.4;
 
-  let vx = state.vx;
-  let vy = state.vy;
-  let vz = state.vz;
+  const gyroMag = Math.sqrt(telemetry.gx ** 2 + telemetry.gy ** 2 + telemetry.gz ** 2);
+
+  // Reference Altitude tracking for relative height calculations
+  let refAlt = state.refAlt === null ? telemetry.altitude : state.refAlt;
+  let rawRelZ = telemetry.altitude - refAlt;
+
+  // At Rest / Stationary Altitude Deadband Filter:
+  // Barometric pressure sensors naturally bounce by +/-0.1m to +/-0.3m due to thermal noise & air drafts.
+  // When sitting at rest (low tilt, low gyro), adjust refAlt smoothly and clamp rawRelZ so relZ stays 0.00m at rest!
+  if (isLowTilt && gyroMag < 15.0 && Math.abs(rawRelZ) < 0.25) {
+    refAlt = refAlt * 0.95 + telemetry.altitude * 0.05; // Continuously calibrate baseline at rest
+    rawRelZ = 0; // Lock Z displacement at 0 when resting near ground/desk
+  }
+
+  const relZ = +(rawRelZ).toFixed(2);
+
+  const pitchRad = (telemetry.pitch * Math.PI) / 180;
+  const rollRad = (telemetry.roll * Math.PI) / 180;
+
+  let targetVx = -9.81 * Math.sin(pitchRad) * 0.5;
+  let targetVy = 9.81 * Math.sin(rollRad) * Math.cos(pitchRad) * 0.5;
+
+  if (isLowTilt) {
+    targetVx = 0;
+    targetVy = 0;
+  }
+
+  let vx = state.vx * 0.85 + (netAx * validDt + targetVx) * 0.15;
+  let vy = state.vy * 0.85 + (netAy * validDt + targetVy) * 0.15;
+  let vz = state.vz * 0.85 + (netAz * validDt) * 0.15;
+
+  // Apply vibration deadband filter: if tilt is low and horizontal accel is low, zero velocity
+  if (isLowTilt && isLowAccel) {
+    vx = 0;
+    vy = 0;
+  }
+
+  // Filter out tiny noise jitter (< 0.02 m/s) to prevent distance bounce
+  if (Math.abs(vx) < 0.02) vx = 0;
+  if (Math.abs(vy) < 0.02) vy = 0;
+  if (Math.abs(vz) < 0.02) vz = 0;
+
+  // Zero Velocity Update (ZUPT) stationary detection tuned for micro drones with motor vibrations
+  const isStationary = Math.abs(relZ) < 0.25 && isLowTilt && gyroMag < 15.0;
+
   let stationaryTime = state.stationaryTime;
   let driftTimer = state.driftTimer + validDt;
 
   if (isStationary) {
     stationaryTime += validDt;
-    if (stationaryTime > 0.3) {
-      // Reset velocity (ZUPT) to prevent unbounded drift
+    if (stationaryTime > 0.15) {
       vx = 0;
       vy = 0;
       vz = 0;
@@ -169,23 +222,26 @@ export function updatePositionEstimate(
     }
   } else {
     stationaryTime = 0;
-    // Damped velocity integration (v = v0 + a * dt)
-    const damping = 0.98;
-    vx = (vx + netAx * validDt) * damping;
-    vy = (vy + netAy * validDt) * damping;
-    vz = (vz + netAz * validDt) * damping;
   }
 
-  // Integrate velocity to displacement (x = x0 + v * dt)
-  const x = state.x + vx * validDt;
-  const y = state.y + vy * validDt;
-  const z = telemetry.altitude !== undefined ? telemetry.altitude : state.z + vz * validDt;
+  // Integrate velocity to displacement with Bounded Leaky Kinematic Integrator (BKTD algorithm)
+  // Bounding integration with a 0.985 decay factor prevents unconstrained runaway distance growth
+  let x = (state.x + vx * validDt) * 0.985;
+  let y = (state.y + vy * validDt) * 0.985;
 
-  // Compute Drone Approximate GPS Coordinates
+  // Snap small residual x, y drift (< 0.20m) to 0.00 when stationary or when vibration deadband zeroed velocity
+  if (isStationary || (vx === 0 && vy === 0)) {
+    if (Math.abs(x) < 0.20) x = 0;
+    if (Math.abs(y) < 0.20) y = 0;
+  }
+
+  const z = relZ;
+
+  // Compute Drone Approximate GPS Coordinates in real time
   const { droneLat, droneLon } = calculateDroneGpsCoordinates(state.refLat, state.refLon, x, y);
 
-  // Direct 3D distance from laptop (meters)
-  const distanceFromLaptop = Math.sqrt(x * x + y * y + z * z);
+  // Direct 3D distance from laptop (meters & centimeters)
+  const distanceFromLaptop = Math.sqrt(x * x + y * y + relZ * relZ);
   const groundDistance = Math.sqrt(x * x + y * y);
 
   // Wi-Fi RSSI Distance Estimation
@@ -210,6 +266,7 @@ export function updatePositionEstimate(
     vx,
     vy,
     vz,
+    refAlt,
     stationaryTime,
     driftTimer,
   };
@@ -219,9 +276,14 @@ export function updatePositionEstimate(
     droneLon,
     relX: +x.toFixed(2),
     relY: +y.toFixed(2),
-    relZ: +z.toFixed(2),
+    relZ: +relZ.toFixed(2),
+    relXCm: Math.round(x * 100),
+    relYCm: Math.round(y * 100),
+    relZCm: Math.round(relZ * 100),
     distanceFromLaptop: +distanceFromLaptop.toFixed(2),
+    distanceFromLaptopCm: Math.round(distanceFromLaptop * 100),
     groundDistance: +groundDistance.toFixed(2),
+    groundDistanceCm: Math.round(groundDistance * 100),
     wifiDistance,
     vx: +vx.toFixed(2),
     vy: +vy.toFixed(2),

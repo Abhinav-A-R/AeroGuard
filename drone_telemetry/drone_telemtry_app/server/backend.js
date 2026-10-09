@@ -45,14 +45,35 @@ function broadcastToClients(data) {
 function validateTelemetryPayload(body) {
   if (!body || typeof body !== 'object') return null;
 
+  let ax = typeof body.ax === 'number' && !isNaN(body.ax) ? body.ax : 0;
+  let ay = typeof body.ay === 'number' && !isNaN(body.ay) ? body.ay : 0;
+  let az = typeof body.az === 'number' && !isNaN(body.az) ? body.az : 9.81;
+
+  // Auto-detect if accelerometer is in 'g' (e.g. az ~ 1.0) vs m/s^2 (e.g. az ~ 9.81)
+  const accelMag = Math.sqrt(ax * ax + ay * ay + az * az);
+  const rawAx = ax;
+  const rawAy = ay;
+  const rawAz = az;
+
+  if (accelMag > 0.3 && accelMag < 3.5) {
+    // Convert g to m/s^2
+    ax = +(ax * 9.81).toFixed(3);
+    ay = +(ay * 9.81).toFixed(3);
+    az = +(az * 9.81).toFixed(3);
+  }
+
+  // Auto-calculate Roll and Pitch from Accelerometer if not explicitly provided
+  const computedRoll = +(Math.atan2(rawAy, rawAz) * (180.0 / Math.PI)).toFixed(2);
+  const computedPitch = +(Math.atan2(-rawAx, Math.sqrt(rawAy * rawAy + rawAz * rawAz)) * (180.0 / Math.PI)).toFixed(2);
+
   return {
     timestamp: typeof body.timestamp === 'number' ? body.timestamp : Date.now() / 1000,
-    roll: typeof body.roll === 'number' && !isNaN(body.roll) ? body.roll : 0,
-    pitch: typeof body.pitch === 'number' && !isNaN(body.pitch) ? body.pitch : 0,
+    roll: typeof body.roll === 'number' && !isNaN(body.roll) ? body.roll : computedRoll,
+    pitch: typeof body.pitch === 'number' && !isNaN(body.pitch) ? body.pitch : computedPitch,
     yaw: typeof body.yaw === 'number' && !isNaN(body.yaw) ? body.yaw : 0,
-    ax: typeof body.ax === 'number' && !isNaN(body.ax) ? body.ax : 0,
-    ay: typeof body.ay === 'number' && !isNaN(body.ay) ? body.ay : 0,
-    az: typeof body.az === 'number' && !isNaN(body.az) ? body.az : 9.81,
+    ax,
+    ay,
+    az,
     gx: typeof body.gx === 'number' && !isNaN(body.gx) ? body.gx : 0,
     gy: typeof body.gy === 'number' && !isNaN(body.gy) ? body.gy : 0,
     gz: typeof body.gz === 'number' && !isNaN(body.gz) ? body.gz : 0,
@@ -74,7 +95,16 @@ function handleIncomingTelemetry(rawBody, source = 'HTTP') {
   const now = Date.now();
   lastPacketTime = now;
   packetCount++;
+  const wasConnected = isEsp32Connected;
   isEsp32Connected = true;
+
+  if (!wasConnected) {
+    broadcastToClients({
+      type: 'STATUS_UPDATE',
+      esp32Connected: true,
+      message: 'ESP32 Telemetry Receiving',
+    });
+  }
 
   const packet = {
     type: 'TELEMETRY',

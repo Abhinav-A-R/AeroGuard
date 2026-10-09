@@ -48,6 +48,7 @@ export default function App() {
   const [settings, setSettingsState] = useState<SystemSettings>(loadSettings);
   const [calibration, setCalibration] = useState<SensorCalibration>(loadCalibrationFromStorage);
   const [positionState, setPositionState] = useState<PositionEstimatorState>(INITIAL_POSITION_STATE);
+  const [currentEstimate, setCurrentEstimate] = useState<PositionEstimate>(() => updatePositionEstimate(INITIAL_POSITION_STATE, null, 0.05).estimate);
 
   // Raw telemetry starts NULL until real data arrives
   const [rawTelemetry, setRawTelemetry] = useState<ESP32Telemetry | null>(null);
@@ -166,9 +167,10 @@ export default function App() {
       return updated.length > 50000 ? updated.slice(-50000) : updated;
     });
 
-    // Update Inertial Position Estimator
+    // Update Inertial Position Estimator ONCE per incoming packet
     setPositionState(prevState => {
-      const { nextState } = updatePositionEstimate(prevState, telem, dt);
+      const { nextState, estimate } = updatePositionEstimate(prevState, telem, dt);
+      setCurrentEstimate(estimate);
       return nextState;
     });
 
@@ -230,13 +232,19 @@ export default function App() {
   }, [telemetryHistory]);
 
   const handleResetPosition = useCallback(() => {
-    setPositionState(prev => ({
-      ...INITIAL_POSITION_STATE,
-      refLat: prev.refLat,
-      refLon: prev.refLon,
-      refSource: prev.refSource,
-    }));
-  }, []);
+    setPositionState(prev => {
+      const resetState = {
+        ...INITIAL_POSITION_STATE,
+        refLat: prev.refLat,
+        refLon: prev.refLon,
+        refSource: prev.refSource,
+        refAlt: rawTelemetry ? rawTelemetry.altitude : null,
+      };
+      const { estimate } = updatePositionEstimate(resetState, rawTelemetry, 0.05);
+      setCurrentEstimate(estimate);
+      return resetState;
+    });
+  }, [rawTelemetry]);
 
   const handleSelectScenario = useCallback((scenario: TestScenarioName) => {
     setActiveTestScenarioState(scenario);
@@ -250,7 +258,7 @@ export default function App() {
 
   const calibratedSensors = rawTelemetry ? applyCalibration(rawTelemetry, calibration) : null;
   const crashRisk = rawTelemetry ? predictCrashRisk(rawTelemetry, prevTelemetryRef.current, dt) : null;
-  const { estimate: positionEstimate } = updatePositionEstimate(positionState, rawTelemetry, dt);
+  const positionEstimate = currentEstimate;
 
   // Critical Crash Siren Audio Triggering Handler
   useEffect(() => {
@@ -280,7 +288,7 @@ export default function App() {
     calibration,
     status: {
       hasReceivedData,
-      esp32Connected: status.esp32Connected,
+      esp32Connected: activeTestScenario !== 'NONE' || (hasReceivedData && lastPacketMsAgo >= 0 && lastPacketMsAgo < 3000),
       wsConnected: status.wsConnected,
       backendConnected: status.backendConnected || status.wsConnected,
       lastPacketMsAgo,
@@ -352,6 +360,7 @@ export default function App() {
               telemetryHistory={telemetryHistory}
               onCalibrate={handleStartCalibration}
               onResetPosition={handleResetPosition}
+              onSelectScenario={handleSelectScenario}
               theme={settings.theme}
             />
           )}
